@@ -2,14 +2,17 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
-	"net/http"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/segmentio/kafka-go"
 )
 
-var upgrader = websocket.Upgrader{}
+const (
+	kafkaBroker = "kafka:9092"
+	topic       = "telemetry"
+)
 
 func generateTelemetry() map[string]float64 {
 	return map[string]float64{
@@ -21,32 +24,30 @@ func generateTelemetry() map[string]float64 {
 	}
 }
 
-func telemetryHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		fmt.Println("Upgrade error:", err)
-		return
+func main() {
+	writer := kafka.Writer{
+		Addr:     kafka.TCP(kafkaBroker),
+		Topic:    topic,
+		Balancer: &kafka.LeastBytes{},
 	}
-	defer conn.Close()
+	defer writer.Close()
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	fmt.Println("Starting telemetry producer...")
 	for range ticker.C {
 		telemetry := generateTelemetry()
-		err := conn.WriteJSON(telemetry)
-		if err != nil {
-			fmt.Println("Write error:", err)
-			return
+		message := kafka.Message{
+			Key:   []byte(fmt.Sprintf("Key-%d", rand.Intn(1000))),
+			Value: []byte(fmt.Sprintf("%v", telemetry)),
 		}
-	}
-}
 
-func main() {
-	http.HandleFunc("/telemetry", telemetryHandler)
-	fmt.Println("Starting telemetry producer on :8080...")
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		fmt.Println("Server error:", err)
+		err := writer.WriteMessages(nil, message)
+		if err != nil {
+			log.Println("Failed to write message:", err)
+		} else {
+			log.Println("Produced message:", message.Value)
+		}
 	}
 }

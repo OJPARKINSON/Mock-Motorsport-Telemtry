@@ -1,61 +1,87 @@
-// consumer.go (for telemetry consumer)
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/segmentio/kafka-go"
 )
 
-var upgrader = websocket.Upgrader{}
+const (
+	kafkaBroker = "kafka:9092"
+	topic       = "telemetry"
+)
 
-type TelemetryData struct {
-	Speed      float64   `json:"speed"`
-	RPM        float64   `json:"rpm"`
-	EngineTemp float64   `json:"engine_temp"`
-	GPSLat     float64   `json:"gps_lat"`
-	GPSLong    float64   `json:"gps_long"`
-	Timestamp  time.Time `json:"timestamp"`
-}
+var db *sql.DB
 
-func saveToDatabase(telemetry TelemetryData) {
-	// Add logic to save telemetry data to a database (e.g., PostgreSQL)
-	fmt.Printf("Saving to DB: %+v\n", telemetry)
-}
-
-func broadcastEvent(telemetry TelemetryData) {
-	// Broadcast telemetry data to subscribers
-}
-
-func handleTelemetry(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+func initDB() {
+	connStr := "postgres://user:password@db:5432/telemetrydb?sslmode=disable"
+	var err error
+	db, err = sql.Open("postgres", connStr)
 	if err != nil {
-		fmt.Println("Upgrade error:", err)
-		return
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer conn.Close()
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS telemetry (
+        id SERIAL PRIMARY KEY,
+        speed FLOAT,
+        rpm FLOAT,
+        engine_temp FLOAT,
+        gps_lat FLOAT,
+        gps_long FLOAT,
+        timestamp TIMESTAMP
+    )`)
+	if err != nil {
+		log.Fatalf("Failed to create table: %v", err)
+	}
+}
+
+func saveToDatabase(telemetry map[string]float64) {
+	_, err := db.Exec(`
+        INSERT INTO telemetry (speed, rpm, engine_temp, gps_lat, gps_long, timestamp)
+        VALUES ($1, $2, $3, $4, $5, $6)`,
+		telemetry["speed"], telemetry["rpm"], telemetry["engine_temp"], telemetry["gps_lat"], telemetry["gps_long"], time.Now())
+
+	if err != nil {
+		log.Println("Failed to save telemetry to database:", err)
+	} else {
+		log.Println("Telemetry saved to database")
+	}
+}
+
+func consumeTelemetry() {
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{kafkaBroker},
+		Topic:   topic,
+		GroupID: "telemetry-consumers",
+	})
+	defer reader.Close()
 
 	for {
-		var telemetry TelemetryData
-		err := conn.ReadJSON(&telemetry)
+		message, err := reader.ReadMessage(nil)
 		if err != nil {
-			fmt.Println("Read error:", err)
-			break
+			log.Println("Failed to read message:", err)
+			continue
 		}
-		telemetry.Timestamp = time.Now()
+
+		fmt.Printf("Received message: %s\n", string(message.Value))
+		// Simulate telemetry data saving
+		telemetry := map[string]float64{
+			"speed":       120.0, // Extract data from message.Value
+			"rpm":         6000.0,
+			"engine_temp": 90.0,
+			"gps_lat":     50.0,
+			"gps_long":    10.0,
+		}
 		saveToDatabase(telemetry)
-		broadcastEvent(telemetry)
 	}
 }
 
 func main() {
-	http.HandleFunc("/consume", handleTelemetry)
-	log.Println("Telemetry consumer running on :8081")
-	err := http.ListenAndServe(":8081", nil)
-	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
-	}
+	initDB()
+	log.Println("Starting telemetry consumer...")
+	consumeTelemetry()
 }
