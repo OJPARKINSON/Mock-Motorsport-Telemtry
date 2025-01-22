@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>F1 Telemetry Dashboard</title>
+    <style>
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>F1 Telemetry Dashboard</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Car ID</th>
+          <th>Speed (km/h)</th>
+          <th>Engine Temp (°C)</th>
+          <th>Tire Pressure</th>
+          <th>Lap Time (s)</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for data in telemetry %}
+        <tr>
+          <td>{{ data.car_id }}</td>
+          <td>{{ data.speed }}</td>
+          <td>{{ data.engine_temp }}</td>
+          <td>{{ data.tire_pressure }}</td>
+          <td>{{ data.lap_time }}</td>
+          <td>{{ data.timestamp }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>

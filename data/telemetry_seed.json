@@ -1,0 +1,18 @@
+[
+  {
+    "car_id": 1,
+    "speed": 280,
+    "engine_temp": 102,
+    "tire_pressure": [22.1, 22.3, 22.0, 21.9],
+    "lap_time": 90.5,
+    "timestamp": "2025-01-22T10:00:00Z"
+  },
+  {
+    "car_id": 1,
+    "speed": 285,
+    "engine_temp": 124,
+    "tire_pressure": [22.2, 22.4, 22.1, 22.0],
+    "lap_time": 90.2,
+    "timestamp": "2025-01-22T10:00:01Z"
+  }
+]
